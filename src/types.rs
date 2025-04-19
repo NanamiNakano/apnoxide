@@ -4,12 +4,12 @@ use serde_json::{Map, Value};
 use snafu::{ResultExt, Snafu};
 
 #[derive(Snafu, Debug)]
-enum BuildError {
+pub enum BuildError {
     ConvertJsonMapError { source: JsonObjectError },
 }
 
 #[derive(Serialize, Debug)]
-enum Title {
+pub enum Title {
     #[serde(rename = "title")]
     Normal(String),
     #[serde(untagged)]
@@ -23,7 +23,7 @@ enum Title {
 }
 
 #[derive(Serialize, Debug)]
-enum Subtitle {
+pub enum Subtitle {
     #[serde(rename = "subtitle")]
     Normal(String),
     #[serde(untagged)]
@@ -37,7 +37,7 @@ enum Subtitle {
 }
 
 #[derive(Serialize, Debug)]
-enum Body {
+pub enum Body {
     #[serde(rename = "body")]
     Normal(String),
     #[serde(untagged)]
@@ -52,7 +52,7 @@ enum Body {
 
 #[derive(Serialize, Debug)]
 #[serde(untagged)]
-enum Alert {
+pub enum Alert {
     Body(String),
     Full {
         #[serde(flatten)]
@@ -69,7 +69,7 @@ enum Alert {
 
 #[derive(Serialize, Debug)]
 #[serde(untagged)]
-enum Sound {
+pub enum Sound {
     Regular(String),
     Critical {
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -84,7 +84,7 @@ enum Sound {
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
-enum InterruptionLevel {
+pub enum InterruptionLevel {
     Passive,
     Active,
     TimeSensitive,
@@ -93,49 +93,49 @@ enum InterruptionLevel {
 
 #[derive(Serialize, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
-struct APS {
+pub struct APS {
     #[serde(skip_serializing_if = "Option::is_none")]
-    alert: Option<Alert>,
+    pub alert: Option<Alert>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    badge: Option<u32>,
+    pub badge: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    sound: Option<Sound>,
+    pub sound: Option<Sound>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    thread_id: Option<String>,
+    pub thread_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    category: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(serialize_with = "crate::serialize::se_bool_as_u8")]
-    content_available: Option<bool>,
+    pub category: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "crate::serialize::se_bool_as_u8")]
-    mutable_content: Option<bool>,
+    pub content_available: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    target_content_id: Option<String>,
+    #[serde(serialize_with = "crate::serialize::se_bool_as_u8")]
+    pub mutable_content: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    interruption_level: Option<InterruptionLevel>,
+    pub target_content_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    relevance_score: Option<f64>,
+    pub interruption_level: Option<InterruptionLevel>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    filter_criteria: Option<String>,
+    pub relevance_score: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stale_date: Option<i64>,
+    pub filter_criteria: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    content_state: Option<Map<String, Value>>,
+    pub stale_date: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    timestamp: Option<i64>,
+    pub content_state: Option<Map<String, Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    event: Option<String>,
+    pub timestamp: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    dismissal_date: Option<i64>,
+    pub event: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    attributes_type: Option<String>,
+    pub dismissal_date: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    attributes: Option<Map<String, Value>>,
+    pub attributes_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<Map<String, Value>>,
 }
 
 impl APS {
-    fn with_content_state<T: Serialize>(mut self, state: T) -> Result<Self, BuildError> {
+    pub fn with_content_state<T: Serialize>(mut self, state: T) -> Result<Self, BuildError> {
         self.content_state = Some(
             StructWrapper(state)
                 .try_into()
@@ -144,7 +144,7 @@ impl APS {
         Ok(self)
     }
 
-    fn with_attributes<T: Serialize>(mut self, attributes: T) -> Result<Self, BuildError> {
+    pub fn with_attributes<T: Serialize>(mut self, attributes: T) -> Result<Self, BuildError> {
         self.attributes = Some(
             StructWrapper(attributes)
                 .try_into()
@@ -155,15 +155,15 @@ impl APS {
 }
 
 #[derive(Serialize, Default, Debug)]
-struct Notification {
-    aps: APS,
+pub struct Notification {
+    pub aps: APS,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(flatten)]
-    custom: Option<Map<String, Value>>,
+    pub custom: Option<Map<String, Value>>,
 }
 
 impl Notification {
-    fn with_custom<T: Serialize>(mut self, custom: T) -> Result<Self, BuildError> {
+    pub fn with_custom<T: Serialize>(mut self, custom: T) -> Result<Self, BuildError> {
         self.custom = Some(
             StructWrapper(custom)
                 .try_into()
@@ -174,11 +174,10 @@ impl Notification {
 }
 
 mod tests {
-    use crate::types::{APS, Alert, InterruptionLevel, Notification, Sound, Subtitle, Title};
-    use serde::Serialize;
-
     #[test]
     fn test_empty() {
+        use crate::types::APS;
+
         let aps = APS::default();
         let json = serde_json::to_string(&aps).unwrap();
         assert_eq!("{}", json);
@@ -186,6 +185,8 @@ mod tests {
 
     #[test]
     fn test_filled() {
+        use crate::types::{APS, Alert, InterruptionLevel, Sound, Subtitle, Title};
+
         let aps = APS {
             alert: Some(Alert::Full {
                 title: Some(Title::Normal("Title".to_string())),
@@ -214,6 +215,9 @@ mod tests {
 
     #[test]
     fn test_custom_payload() {
+        use crate::types::Notification;
+        use serde::Serialize;
+
         #[derive(Serialize)]
         struct Custom {
             payload: String,
