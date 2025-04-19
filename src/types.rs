@@ -5,7 +5,7 @@ use snafu::{ResultExt, Snafu};
 
 #[derive(Snafu, Debug)]
 pub enum BuildError {
-    ConvertJsonMapError { source: JsonObjectError },
+    ConvertJsonObjectError { source: JsonObjectError },
 }
 
 #[derive(Serialize, Debug)]
