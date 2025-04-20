@@ -1,5 +1,5 @@
-use reqwest::header::HeaderMap;
 use crate::serialize::{JsonObjectError, StructWrapper};
+use reqwest::header::HeaderMap;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use snafu::{ResultExt, Snafu};
@@ -94,7 +94,7 @@ pub enum InterruptionLevel {
 
 #[derive(Serialize, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
-pub struct APS {
+pub struct Notification {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alert: Option<Alert>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -135,7 +135,7 @@ pub struct APS {
     pub attributes: Option<Map<String, Value>>,
 }
 
-impl APS {
+impl Notification {
     pub fn with_content_state<T: Serialize>(mut self, state: T) -> Result<Self, BuildError> {
         self.content_state = Some(
             StructWrapper(state)
@@ -156,14 +156,14 @@ impl APS {
 }
 
 #[derive(Serialize, Default, Debug)]
-pub struct Notification {
-    pub aps: APS,
+pub struct Payload {
+    pub aps: Notification,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(flatten)]
     pub custom: Option<Map<String, Value>>,
 }
 
-impl Notification {
+impl Payload {
     pub fn with_custom<T: Serialize>(mut self, custom: T) -> Result<Self, BuildError> {
         self.custom = Some(
             StructWrapper(custom)
@@ -237,16 +237,16 @@ impl Default for Endpoint {
 }
 
 #[derive(Default)]
-pub struct PushOption {
-    pub push_type: Option<String>,
-    pub id: Option<String>,
+pub struct PushOption<'a> {
+    pub push_type: Option<&'a str>,
+    pub id: Option<&'a str>,
     pub expiration: Option<u128>,
     pub priority: Option<u8>,
-    pub topic: String,
-    pub collapse_id: Option<String>,
+    pub topic: &'a str,
+    pub collapse_id: Option<&'a str>,
 }
 
-impl TryFrom<PushOption> for HeaderMap {
+impl TryFrom<PushOption<'_>> for HeaderMap {
     type Error = ();
 
     fn try_from(value: PushOption) -> Result<Self, Self::Error> {
@@ -258,10 +258,16 @@ impl TryFrom<PushOption> for HeaderMap {
             headers.insert("apns-id", id.parse().map_err(|_| ())?);
         }
         if let Some(expiration) = value.expiration {
-            headers.insert("apns-expiration", expiration.to_string().parse().map_err(|_| ())?);
+            headers.insert(
+                "apns-expiration",
+                expiration.to_string().parse().map_err(|_| ())?,
+            );
         }
         if let Some(priority) = value.priority {
-            headers.insert("apns-priority", priority.to_string().parse().map_err(|_| ())?);
+            headers.insert(
+                "apns-priority",
+                priority.to_string().parse().map_err(|_| ())?,
+            );
         }
         if let Some(collapse_id) = value.collapse_id {
             headers.insert("apns-collapse-id", collapse_id.parse().map_err(|_| ())?);
@@ -275,16 +281,16 @@ impl TryFrom<PushOption> for HeaderMap {
 mod tests {
     #[test]
     fn test_empty() {
-        use crate::types::APS;
+        use crate::types::Notification;
 
-        let aps = APS::default();
+        let aps = Notification::default();
         let json = serde_json::to_string(&aps).unwrap();
         assert_eq!("{}", json);
     }
 
     #[test]
     fn test_filled() {
-        use crate::types::{APS, Alert, InterruptionLevel, Sound, Subtitle, Title};
+        use crate::types::{Alert, InterruptionLevel, Notification, Sound, Subtitle, Title};
         use serde::Serialize;
 
         #[derive(Serialize)]
@@ -296,7 +302,7 @@ mod tests {
             attr: "foo".to_string(),
         };
 
-        let aps = APS {
+        let aps = Notification {
             alert: Some(Alert::Full {
                 title: Some(Title::Normal("Title".to_string())),
                 subtitle: Some(Subtitle::Localized {
@@ -313,8 +319,10 @@ mod tests {
             }),
             mutable_content: Some(true),
             interruption_level: Some(InterruptionLevel::TimeSensitive),
-            ..APS::default()
-        }.with_attributes(attr).unwrap();
+            ..Notification::default()
+        }
+        .with_attributes(attr)
+        .unwrap();
         let json = serde_json::to_string(&aps).unwrap();
         assert_eq!(
             "{\"alert\":{\"title\":\"Title\",\"subtitle-loc-key\":\"SUBTITLE_KEY\"},\"sound\":{\"critical\":1},\"mutable-content\":1,\"interruption-level\":\"time-sensitive\",\"attributes\":{\"attr\":\"foo\"}}",
@@ -324,7 +332,7 @@ mod tests {
 
     #[test]
     fn test_custom_payload() {
-        use crate::types::Notification;
+        use crate::types::Payload;
         use serde::Serialize;
 
         #[derive(Serialize)]
@@ -335,11 +343,11 @@ mod tests {
         let custom = Custom {
             payload: String::from("payload"),
         };
-        let notification = Notification {
-            ..Notification::default()
+        let notification = Payload {
+            ..Payload::default()
         }
-            .with_custom(custom)
-            .unwrap();
+        .with_custom(custom)
+        .unwrap();
         let json = serde_json::to_string(&notification).unwrap();
         assert_eq!("{\"aps\":{},\"payload\":\"payload\"}", json)
     }

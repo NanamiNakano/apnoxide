@@ -24,8 +24,7 @@ impl<T: Serialize> TryFrom<StructWrapper<T>> for Map<String, Value> {
     type Error = JsonObjectError;
 
     fn try_from(converter: StructWrapper<T>) -> Result<Self, Self::Error> {
-        let value =
-            serde_json::to_value(converter.0).context(SerializationSnafu)?;
+        let value = serde_json::to_value(converter.0).context(SerializationSnafu)?;
 
         match value {
             Value::Object(object) => Ok(object),

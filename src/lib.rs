@@ -1,5 +1,6 @@
+mod client;
 pub mod serialize;
 mod types;
-mod client;
 
+pub use client::*;
 pub use types::*;

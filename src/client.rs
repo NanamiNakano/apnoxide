@@ -1,5 +1,5 @@
 use crate::client::APNClientError::{HeaderError, InitializeError, SignError};
-use crate::{Endpoint, Notification, PushOption};
+use crate::{Endpoint, Payload, PushOption};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde::Serialize;
 use snafu::{ResultExt, Snafu};
@@ -19,9 +19,6 @@ pub enum APNClientError {
     SystemTimeError {
         source: time::SystemTimeError,
     },
-    SerializeError {
-        source: serde_json::Error,
-    },
     HTTPError {
         source: reqwest::Error,
     },
@@ -40,7 +37,7 @@ pub struct APNTokenClaims {
     #[serde(rename = "iss")]
     pub issuer_team_id: String,
     #[serde(rename = "iat")]
-    pub issued_at: u128,
+    pub issued_at: u64,
 }
 
 impl APNClientConfig {
@@ -70,13 +67,18 @@ pub struct APNClient {
 }
 
 impl APNClient {
-    pub fn new(config: APNClientConfig) -> Self {
-        Self {
+    pub fn new(config: APNClientConfig) -> Result<Self, APNClientError> {
+        Ok(Self {
             config,
             token: None,
             signed_time: SystemTime::now(),
-            http_client: reqwest::Client::new(),
-        }
+            http_client: reqwest::Client::builder()
+                .use_rustls_tls()
+                .build()
+                .map_err(|_| InitializeError {
+                    msg: "Unable to initialize http client".to_string(),
+                })?,
+        })
     }
 
     fn sign(&mut self) -> Result<String, APNClientError> {
@@ -98,35 +100,32 @@ impl APNClient {
             issued_at: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .context(SystemTimeSnafu)?
-                .as_millis(),
+                .as_secs(),
         };
         let token = encode(&header, &claims, &self.config.key).map_err(|_| SignError {
             msg: "Unable to sign token".to_string(),
         })?;
         self.token = Some(token.clone());
+        println!("{}", &token);
         Ok(token)
     }
 
     pub async fn push(
         &mut self,
-        payload: &Notification,
-        device_token: String,
-        option: PushOption,
+        payload: &Payload,
+        device_token: &str,
+        option: PushOption<'_>,
     ) -> Result<(), APNClientError> {
         let path = format!("{}/3/device/{}", &self.config.endpoint, device_token);
         let token = self.sign()?;
-        let payload = serde_json::to_string(payload).context(SerializeSnafu)?;
         let req = self
             .http_client
             .post(path)
             .bearer_auth(token)
             .headers(option.try_into().map_err(|_| HeaderError)?)
-            .header("CONTENT_LENGTH", payload.len())
-            .body(payload);
-        let res = req
-            .send()
-            .await
-            .context(HTTPSnafu)?;
+            .json(payload);
+        let res = req.send().await.context(HTTPSnafu)?;
+        println!("{:?}", res);
         Ok(())
     }
 }
