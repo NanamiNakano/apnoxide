@@ -2,6 +2,11 @@
 name = "apnoxide"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+description = "Apple Push Notification Service for Rust built on `reqwest`"
+repository = "https://github.com/NanamiNakano/apnoxide"
+readme = "README.md"
+keywords = ["APN", "APNS"]
 
 [dependencies]
 jsonwebtoken = "9.3.1"
