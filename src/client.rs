@@ -109,13 +109,13 @@ impl APNClient {
     }
 
     fn sign(&mut self) -> Result<String, APNClientError> {
-        if let Some(token) = self.token.clone() {
+        if let Some(token) = &self.token {
             let now = SystemTime::now();
             let duration = now
                 .duration_since(self.signed_time)
                 .context(SystemTimeSnafu)?;
             if duration < Duration::from_secs(60 * 20) {
-                return Ok(token);
+                return Ok(token.clone());
             }
         }
 

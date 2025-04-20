@@ -1,16 +1,6 @@
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 use serde_json::{Map, Value};
 use snafu::{ResultExt, Snafu};
-
-#[allow(dead_code)]
-pub(crate) fn se_bool_as_u8<S: Serializer>(x: &Option<bool>, s: S) -> Result<S::Ok, S::Error> {
-    if let Some(x) = x {
-        if *x {
-            return s.serialize_u8(1);
-        }
-    }
-    s.serialize_none()
-}
 
 #[derive(Snafu, Debug)]
 #[non_exhaustive]

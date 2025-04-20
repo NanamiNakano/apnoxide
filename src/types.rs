@@ -3,6 +3,7 @@ use reqwest::header::HeaderMap;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use snafu::{ResultExt, Snafu};
+use serde_with::{serde_as, BoolFromInt};
 
 #[derive(Snafu, Debug)]
 #[non_exhaustive]
@@ -69,13 +70,14 @@ pub enum Alert {
     },
 }
 
+#[serde_as]
 #[derive(Serialize, Debug)]
 #[serde(untagged)]
 pub enum Sound {
     Regular(String),
     Critical {
         #[serde(skip_serializing_if = "Option::is_none")]
-        #[serde(serialize_with = "crate::serialize::se_bool_as_u8")]
+        #[serde_as(as = "Option<BoolFromInt>")]
         critical: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
         name: Option<String>,
@@ -93,6 +95,7 @@ pub enum InterruptionLevel {
     Critical,
 }
 
+#[serde_as]
 #[derive(Serialize, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct Notification {
@@ -107,10 +110,10 @@ pub struct Notification {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(serialize_with = "crate::serialize::se_bool_as_u8")]
+    #[serde_as(as = "Option<BoolFromInt>")]
     pub content_available: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(serialize_with = "crate::serialize::se_bool_as_u8")]
+    #[serde_as(as = "Option<BoolFromInt>")]
     pub mutable_content: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_content_id: Option<String>,
