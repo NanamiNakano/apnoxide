@@ -1,8 +1,10 @@
 use crate::client::APNClientError::{HeaderError, InitializeError, SignError};
+use crate::APNClientError::{APNError, InvalidResponseError};
 use crate::{Endpoint, Payload, PushOption};
-use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
-use serde::Serialize;
-use snafu::{ResultExt, Snafu};
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use reqwest::header::ToStrError;
+use serde::{Deserialize, Serialize};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::time;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -22,7 +24,31 @@ pub enum APNClientError {
     HTTPError {
         source: reqwest::Error,
     },
+    #[snafu(display("Unable to parse header"))]
     HeaderError,
+    #[snafu(display("Can not parse APN server response"))]
+    InvalidResponseError,
+    #[snafu(display("Error from APN server: {}", error.reason))]
+    APNError {
+        response: APNResponse,
+        status: u16,
+        error: APNErrorResponse,
+    },
+    ToStrError {
+        source: ToStrError,
+    },
+}
+
+#[derive(Debug)]
+pub struct APNResponse {
+    pub id: String,
+    pub unique_id: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct APNErrorResponse {
+    pub reason: String,
+    pub timestamp: Option<u64>,
 }
 
 pub struct APNClientConfig {
@@ -85,7 +111,7 @@ impl APNClient {
         if let Some(token) = self.token.clone() {
             let now = SystemTime::now();
             let duration = now
-                .duration_since(self.signed_time.clone())
+                .duration_since(self.signed_time)
                 .context(SystemTimeSnafu)?;
             if duration < Duration::from_secs(60 * 20) {
                 return Ok(token);
@@ -106,7 +132,6 @@ impl APNClient {
             msg: "Unable to sign token".to_string(),
         })?;
         self.token = Some(token.clone());
-        println!("{}", &token);
         Ok(token)
     }
 
@@ -115,7 +140,7 @@ impl APNClient {
         payload: &Payload,
         device_token: &str,
         option: PushOption<'_>,
-    ) -> Result<(), APNClientError> {
+    ) -> Result<APNResponse, APNClientError> {
         let path = format!("{}/3/device/{}", &self.config.endpoint, device_token);
         let token = self.sign()?;
         let req = self
@@ -125,7 +150,33 @@ impl APNClient {
             .headers(option.try_into().map_err(|_| HeaderError)?)
             .json(payload);
         let res = req.send().await.context(HTTPSnafu)?;
-        println!("{:?}", res);
-        Ok(())
+        let headers = res.headers();
+        let id = String::from(
+            headers
+                .get("apns-id")
+                .context(InvalidResponseSnafu)?
+                .to_str()
+                .context(ToStrSnafu)?,
+        );
+        let unique_id = match headers.get("apns-unique-id") {
+            None => None,
+            Some(value) => Some(value.to_str().context(ToStrSnafu)?.to_string()),
+        };
+        let apn_response = APNResponse { id, unique_id };
+        let status = res.status().as_u16();
+        match status {
+            200 => Ok(apn_response),
+            _ => {
+                let error_response = res
+                    .json::<APNErrorResponse>()
+                    .await
+                    .map_err(|_| InvalidResponseError)?;
+                Err(APNError {
+                    response: apn_response,
+                    status,
+                    error: error_response,
+                })
+            }
+        }
     }
 }

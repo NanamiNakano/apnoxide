@@ -120,15 +120,15 @@ pub struct Notification {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter_criteria: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub stale_date: Option<u128>,
+    pub stale_date: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_state: Option<Map<String, Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timestamp: Option<u128>,
+    pub timestamp: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub dismissal_date: Option<u128>,
+    pub dismissal_date: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributes_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -179,9 +179,9 @@ pub struct Endpoint {
     port: u16,
 }
 
-impl Into<String> for Endpoint {
-    fn into(self) -> String {
-        format!("https://{}:{}", self.endpoint, self.port)
+impl From<Endpoint> for String {
+    fn from(value: Endpoint) -> Self {
+            format!("https://{}:{}", value.endpoint, value.port)
     }
 }
 
