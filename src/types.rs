@@ -1,3 +1,4 @@
+use reqwest::header::HeaderMap;
 use crate::serialize::{JsonObjectError, StructWrapper};
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -119,15 +120,15 @@ pub struct APS {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter_criteria: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub stale_date: Option<i64>,
+    pub stale_date: Option<u128>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_state: Option<Map<String, Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timestamp: Option<i64>,
+    pub timestamp: Option<u128>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub dismissal_date: Option<i64>,
+    pub dismissal_date: Option<u128>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributes_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -139,7 +140,7 @@ impl APS {
         self.content_state = Some(
             StructWrapper(state)
                 .try_into()
-                .context(ConvertJsonMapSnafu)?,
+                .context(ConvertJsonObjectSnafu)?,
         );
         Ok(self)
     }
@@ -148,7 +149,7 @@ impl APS {
         self.attributes = Some(
             StructWrapper(attributes)
                 .try_into()
-                .context(ConvertJsonMapSnafu)?,
+                .context(ConvertJsonObjectSnafu)?,
         );
         Ok(self)
     }
@@ -167,12 +168,110 @@ impl Notification {
         self.custom = Some(
             StructWrapper(custom)
                 .try_into()
-                .context(ConvertJsonMapSnafu)?,
+                .context(ConvertJsonObjectSnafu)?,
         );
         Ok(self)
     }
 }
 
+pub struct Endpoint {
+    endpoint: String,
+    port: u16,
+}
+
+impl Into<String> for Endpoint {
+    fn into(self) -> String {
+        format!("https://{}:{}", self.endpoint, self.port)
+    }
+}
+
+impl TryFrom<String> for Endpoint {
+    type Error = ();
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let value = value.split(":").collect::<Vec<_>>();
+        if value.len() != 2 {
+            return Err(());
+        };
+        Ok(Self {
+            endpoint: value[0].to_string(),
+            port: value[1].parse().map_err(|_| ())?,
+        })
+    }
+}
+
+impl Endpoint {
+    pub fn development() -> Self {
+        Self {
+            endpoint: "api.sandbox.push.apple.com".to_string(),
+            port: 443,
+        }
+    }
+
+    pub fn development_alter() -> Self {
+        Self {
+            endpoint: "api.sandbox.push.apple.com".to_string(),
+            port: 2197,
+        }
+    }
+
+    pub fn production() -> Self {
+        Self {
+            endpoint: "api.push.apple.com".to_string(),
+            port: 443,
+        }
+    }
+
+    pub fn production_alter() -> Self {
+        Self {
+            endpoint: "api.push.apple.com".to_string(),
+            port: 2197,
+        }
+    }
+}
+
+impl Default for Endpoint {
+    fn default() -> Self {
+        Self::production()
+    }
+}
+
+#[derive(Default)]
+pub struct PushOption {
+    pub push_type: Option<String>,
+    pub id: Option<String>,
+    pub expiration: Option<u128>,
+    pub priority: Option<u8>,
+    pub topic: String,
+    pub collapse_id: Option<String>,
+}
+
+impl TryFrom<PushOption> for HeaderMap {
+    type Error = ();
+
+    fn try_from(value: PushOption) -> Result<Self, Self::Error> {
+        let mut headers = Self::new();
+        if let Some(push_type) = value.push_type {
+            headers.insert("apns-push-type", push_type.parse().map_err(|_| ())?);
+        }
+        if let Some(id) = value.id {
+            headers.insert("apns-id", id.parse().map_err(|_| ())?);
+        }
+        if let Some(expiration) = value.expiration {
+            headers.insert("apns-expiration", expiration.to_string().parse().map_err(|_| ())?);
+        }
+        if let Some(priority) = value.priority {
+            headers.insert("apns-priority", priority.to_string().parse().map_err(|_| ())?);
+        }
+        if let Some(collapse_id) = value.collapse_id {
+            headers.insert("apns-collapse-id", collapse_id.parse().map_err(|_| ())?);
+        }
+        headers.insert("apns-topic", value.topic.parse().map_err(|_| ())?);
+        Ok(headers)
+    }
+}
+
+#[cfg(test)]
 mod tests {
     #[test]
     fn test_empty() {
@@ -186,6 +285,16 @@ mod tests {
     #[test]
     fn test_filled() {
         use crate::types::{APS, Alert, InterruptionLevel, Sound, Subtitle, Title};
+        use serde::Serialize;
+
+        #[derive(Serialize)]
+        struct Attr {
+            attr: String,
+        }
+
+        let attr = Attr {
+            attr: "foo".to_string(),
+        };
 
         let aps = APS {
             alert: Some(Alert::Full {
@@ -205,10 +314,10 @@ mod tests {
             mutable_content: Some(true),
             interruption_level: Some(InterruptionLevel::TimeSensitive),
             ..APS::default()
-        };
+        }.with_attributes(attr).unwrap();
         let json = serde_json::to_string(&aps).unwrap();
         assert_eq!(
-            "{\"alert\":{\"title\":\"Title\",\"subtitle-loc-key\":\"SUBTITLE_KEY\"},\"sound\":{\"critical\":1},\"mutable-content\":1,\"interruption-level\":\"time-sensitive\"}",
+            "{\"alert\":{\"title\":\"Title\",\"subtitle-loc-key\":\"SUBTITLE_KEY\"},\"sound\":{\"critical\":1},\"mutable-content\":1,\"interruption-level\":\"time-sensitive\",\"attributes\":{\"attr\":\"foo\"}}",
             json
         )
     }
@@ -229,8 +338,8 @@ mod tests {
         let notification = Notification {
             ..Notification::default()
         }
-        .with_custom(custom)
-        .unwrap();
+            .with_custom(custom)
+            .unwrap();
         let json = serde_json::to_string(&notification).unwrap();
         assert_eq!("{\"aps\":{},\"payload\":\"payload\"}", json)
     }

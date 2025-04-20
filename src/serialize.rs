@@ -18,7 +18,7 @@ pub enum JsonObjectError {
     NotAnObjectError,
 }
 
-pub struct StructWrapper<T>(pub T);
+pub(crate) struct StructWrapper<T>(pub T);
 
 impl<T: Serialize> TryFrom<StructWrapper<T>> for Map<String, Value> {
     type Error = JsonObjectError;
