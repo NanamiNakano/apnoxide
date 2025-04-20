@@ -5,6 +5,7 @@ use serde_json::{Map, Value};
 use snafu::{ResultExt, Snafu};
 
 #[derive(Snafu, Debug)]
+#[non_exhaustive]
 pub enum BuildError {
     ConvertJsonObjectError { source: JsonObjectError },
 }
@@ -279,10 +280,11 @@ impl TryFrom<PushOption<'_>> for HeaderMap {
 
 #[cfg(test)]
 mod tests {
+    use serde::Serialize;
+    use crate::{Alert, InterruptionLevel, Notification, Payload, Sound, Subtitle, Title};
+
     #[test]
     fn test_empty() {
-        use crate::types::Notification;
-
         let aps = Notification::default();
         let json = serde_json::to_string(&aps).unwrap();
         assert_eq!("{}", json);
@@ -290,9 +292,6 @@ mod tests {
 
     #[test]
     fn test_filled() {
-        use crate::types::{Alert, InterruptionLevel, Notification, Sound, Subtitle, Title};
-        use serde::Serialize;
-
         #[derive(Serialize)]
         struct Attr {
             attr: String,
@@ -332,9 +331,6 @@ mod tests {
 
     #[test]
     fn test_custom_payload() {
-        use crate::types::Payload;
-        use serde::Serialize;
-
         #[derive(Serialize)]
         struct Custom {
             payload: String,

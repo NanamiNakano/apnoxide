@@ -9,6 +9,7 @@ use std::time;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum APNClientError {
     #[snafu(display("Error when initialize client: {}", msg))]
     InitializeError {

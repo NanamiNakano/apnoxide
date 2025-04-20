@@ -13,6 +13,7 @@ pub(crate) fn se_bool_as_u8<S: Serializer>(x: &Option<bool>, s: S) -> Result<S::
 }
 
 #[derive(Snafu, Debug)]
+#[non_exhaustive]
 pub enum JsonObjectError {
     SerializationError { source: serde_json::Error },
     NotAnObjectError,
