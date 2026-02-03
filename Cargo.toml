@@ -9,7 +9,7 @@ readme = "README.md"
 keywords = ["APN", "APNS"]
 
 [dependencies]
-jsonwebtoken = "9.3.1"
+jsonwebtoken = "10.3.0"
 reqwest = { version = "0.12.15", features = ["json", "rustls-tls"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
